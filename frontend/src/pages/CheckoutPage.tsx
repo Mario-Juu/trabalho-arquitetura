@@ -109,6 +109,8 @@ const CheckoutPage: React.FC = () => {
     setError(null);
     setSuccess(null);
     try {
+      await pedidoService.atualizarStatus(pedidoId, 'em_processamento');
+
       const transacaoDTO: CreateTransacaoDTO = {
         idPedido: pedidoId,
         formaPagamento,
@@ -117,12 +119,14 @@ const CheckoutPage: React.FC = () => {
 
       const result = await transacaoService.processar(transacaoDTO);
       setTransacaoResult(result);
-      setEtapa('confirmacao');
-      setSuccess(
-        result.status === 'aprovada'
-          ? 'Pagamento processado com sucesso!'
-          : `Pagamento ${result.status}.`
-      );
+
+      if (result.status === 'aprovada') {
+        await pedidoService.atualizarStatus(pedidoId, 'pago');
+        setEtapa('confirmacao');
+        setSuccess('Pagamento aprovado! O pedido foi marcado como pago.');
+      } else {
+        setError(`Pagamento ${result.status}. O pedido permanece em processamento.`);
+      }
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Erro ao processar pagamento'));
     } finally {
@@ -171,28 +175,47 @@ const CheckoutPage: React.FC = () => {
   const renderItens = () => (
     <div className="card">
       <h2 className="card-title">Itens do Pedido</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '10px', marginBottom: '20px' }}>
-        <input
-          className="form-input"
-          placeholder="Nome do produto"
-          value={novoItem.nome}
-          onChange={(e) => setNovoItem({ ...novoItem, nome: e.target.value })}
-        />
-        <input
-          className="form-input"
-          type="number"
-          placeholder="Qtd"
-          value={novoItem.quantidade}
-          onChange={(e) => setNovoItem({ ...novoItem, quantidade: parseInt(e.target.value) || 0 })}
-        />
-        <input
-          className="form-input"
-          type="number"
-          placeholder="Preço"
-          value={novoItem.preco}
-          onChange={(e) => setNovoItem({ ...novoItem, preco: parseFloat(e.target.value) || 0 })}
-        />
-        <button onClick={adicionarItem} className="btn btn-primary">Adicionar</button>
+      <p style={{ color: '#4a5568', fontSize: '0.875rem', marginBottom: '16px' }}>
+        Informe o produto, a quantidade e o valor unitário em reais.
+      </p>
+      <div className="cart-add-form">
+        <div className="cart-add-header">
+          <span>Produto</span>
+          <span>Quantidade</span>
+          <span>Valor unitário (R$)</span>
+          <span>Ação</span>
+        </div>
+        <div className="cart-add-row">
+          <input
+            className="form-input"
+            placeholder="Ex.: Camiseta azul"
+            value={novoItem.nome}
+            onChange={(e) => setNovoItem({ ...novoItem, nome: e.target.value })}
+            aria-label="Nome do produto"
+          />
+          <input
+            className="form-input"
+            type="number"
+            min={1}
+            placeholder="1"
+            value={novoItem.quantidade}
+            onChange={(e) => setNovoItem({ ...novoItem, quantidade: parseInt(e.target.value, 10) || 0 })}
+            aria-label="Quantidade"
+          />
+          <input
+            className="form-input"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="0,00"
+            value={novoItem.preco}
+            onChange={(e) => setNovoItem({ ...novoItem, preco: parseFloat(e.target.value) || 0 })}
+            aria-label="Valor unitário em reais"
+          />
+          <button type="button" onClick={adicionarItem} className="btn btn-primary">
+            Adicionar
+          </button>
+        </div>
       </div>
 
       {itens.length > 0 && (
@@ -324,13 +347,14 @@ const CheckoutPage: React.FC = () => {
       </p>
       <div style={{ backgroundColor: '#f7fafc', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         <p><strong>ID do Pedido:</strong> {pedidoId}</p>
+        <p><strong>Status do pedido:</strong> pago</p>
         {transacaoResult?.id && (
           <p><strong>ID da Transação:</strong> {transacaoResult.id}</p>
         )}
         <p><strong>Total:</strong> R$ {calcularTotal().toFixed(2)}</p>
         <p><strong>Forma de Pagamento:</strong> {formaPagamento?.replace(/_/g, ' ')}</p>
         {transacaoResult?.status && (
-          <p><strong>Status:</strong> {transacaoResult.status}</p>
+          <p><strong>Status do pagamento:</strong> {transacaoResult.status}</p>
         )}
       </div>
       <button onClick={() => window.location.reload()} className="btn btn-primary">

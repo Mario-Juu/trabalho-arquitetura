@@ -165,3 +165,45 @@ body {
   background-color: #bee3f8;
   color: #2c5282;
 }
+
+.cart-add-form {
+  margin-bottom: 24px;
+}
+
+.cart-add-header,
+.cart-add-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.cart-add-header {
+  margin-bottom: 6px;
+  padding: 0 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.btn-success {
+  background-color: #38a169;
+  color: white;
+}
+
+.btn-success:hover {
+  background-color: #2f855a;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.875rem;
+}
+
+.actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

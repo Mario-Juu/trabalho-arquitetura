@@ -55,6 +55,14 @@ func (s *TransacaoService) Create(ctx context.Context, req models.CreateTransaca
 
 	transacao.ID = res.InsertedID.(primitive.ObjectID)
 
+	if transacao.Status == models.TransacaoAprovada {
+		if err := atualizarStatusPedido(ctx, pedidoID.Hex(), "pago"); err != nil {
+			log.Printf("Aviso: pagamento aprovado, mas falha ao atualizar pedido %s: %v", pedidoID.Hex(), err)
+		} else {
+			log.Printf("Pedido %s marcado como pago", pedidoID.Hex())
+		}
+	}
+
 	log.Printf("Transação criada: ID=%s, Status=%s", transacao.ID.Hex(), transacao.Status)
 
 	return transacao, nil
@@ -145,6 +153,10 @@ func (s *TransacaoService) Cancel(ctx context.Context, id string) (*models.Trans
 			return nil, fmt.Errorf("transação não encontrada")
 		}
 		return nil, err
+	}
+
+	if err := atualizarStatusPedido(ctx, transacao.IDPedido.Hex(), "cancelado"); err != nil {
+		log.Printf("Aviso: transação cancelada, mas falha ao atualizar pedido %s: %v", transacao.IDPedido.Hex(), err)
 	}
 
 	log.Printf("Transação cancelada: ID=%s", id)

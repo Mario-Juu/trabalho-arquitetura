@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: gateway-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: gateway_pagamentos
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb/init:/docker-entrypoint-initdb.d
+    networks:
+      - gateway-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clientes-service:
+    build:
+      context: ./services/clientes
+      dockerfile: Dockerfile
+    container_name: gateway-clientes
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/gateway_pagamentos?authSource=admin
+      - JWT_SECRET=seu_segredo_jwt_muito_secreto_123
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - gateway-network
+
+  pedidos-service:
+    build:
+      context: ./services/pedidos
+      dockerfile: Dockerfile
+    container_name: gateway-pedidos
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/gateway_pagamentos?authSource=admin
+      - CLIENTES_SERVICE_URL=http://clientes-service:3001
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - gateway-network
+
+  transacoes-service:
+    build:
+      context: ./services/transacoes
+      dockerfile: Dockerfile
+    container_name: gateway-transacoes
+    ports:
+      - "8080:8080"
+    environment:
+      - GO_ENV=development
+      - PORT=8080
+      - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/gateway_pagamentos?authSource=admin
+      - PEDIDOS_SERVICE_URL=http://pedidos-service:3002
+      - MERCADO_PAGO_ACCESS_TOKEN=${MERCADO_PAGO_ACCESS_TOKEN}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - gateway-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: gateway-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    depends_on:
+      - clientes-service
+      - pedidos-service
+      - transacoes-service
+    networks:
+      - gateway-network
+
+networks:
+  gateway-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

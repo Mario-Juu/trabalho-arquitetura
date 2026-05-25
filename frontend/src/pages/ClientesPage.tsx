@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { clienteService } from '../services/clienteService';
 import { Cliente, CreateClienteDTO } from '../types/cliente';
+import { formatDate, formatShortId, getApiErrorMessage } from '../utils/api';
 
 const clienteSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
@@ -24,11 +25,12 @@ const ClientesPage: React.FC = () => {
 
   const buscarClientes = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await clienteService.listarTodos();
       setClientes(data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao buscar clientes');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao buscar clientes'));
     } finally {
       setLoading(false);
     }
@@ -47,26 +49,27 @@ const ClientesPage: React.FC = () => {
       setSuccess('Cliente cadastrado com sucesso!');
       form.reset();
       setMostrarFormulario(false);
-      buscarClientes();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao cadastrar cliente');
+      await buscarClientes();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao cadastrar cliente'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeletar = async (id: string) => {
-    if (confirm('Tem certeza que deseja deletar este cliente?')) {
-      setLoading(true);
-      try {
-        await clienteService.deletar(id);
-        setSuccess('Cliente deletado com sucesso!');
-        buscarClientes();
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Erro ao deletar cliente');
-      } finally {
-        setLoading(false);
-      }
+    if (!id || !confirm('Tem certeza que deseja deletar este cliente?')) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await clienteService.deletar(id);
+      setSuccess('Cliente deletado com sucesso!');
+      await buscarClientes();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao deletar cliente'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,7 +79,7 @@ const ClientesPage: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 className="card-title" style={{ margin: 0 }}>Clientes</h2>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={buscarClientes} className="btn btn-secondary">
+            <button onClick={buscarClientes} className="btn btn-secondary" disabled={loading}>
               Atualizar
             </button>
             <button onClick={() => setMostrarFormulario(!mostrarFormulario)} className="btn btn-primary">
@@ -144,17 +147,18 @@ const ClientesPage: React.FC = () => {
             </thead>
             <tbody>
               {clientes.map((cliente) => (
-                <tr key={cliente.id}>
-                  <td>{cliente.id.substring(0, 8)}...</td>
+                <tr key={cliente.id || cliente.email}>
+                  <td>{formatShortId(cliente.id)}</td>
                   <td>{cliente.nome}</td>
                   <td>{cliente.email}</td>
                   <td>{cliente.cpf}</td>
-                  <td>{new Date(cliente.dataCadastro).toLocaleDateString('pt-BR')}</td>
+                  <td>{formatDate(cliente.dataCadastro)}</td>
                   <td>
                     <button
                       onClick={() => handleDeletar(cliente.id)}
                       className="btn btn-danger"
                       style={{ padding: '5px 10px' }}
+                      disabled={!cliente.id || loading}
                     >
                       Deletar
                     </button>

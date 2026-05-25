@@ -155,7 +155,7 @@ func generateRandomID(length int) string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	result := make([]byte, length)
 	for i := range result {
-		result[i] = charset[time.Now().UnixNano()%len(charset)]
+		result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 	}
 	return string(result)
 }

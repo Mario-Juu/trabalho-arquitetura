@@ -3,7 +3,7 @@ export interface Cliente {
   nome: string;
   email: string;
   cpf: string;
-  dataCadastro: Date;
+  dataCadastro: string;
 }
 
 export interface CreateClienteDTO {

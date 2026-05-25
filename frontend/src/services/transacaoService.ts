@@ -1,26 +1,25 @@
-import { api } from './api';
+import { transacoesApi } from './api';
 import { Transacao, CreateTransacaoDTO } from '../types/transacao';
-
-const TRANSACOES_API = 'http://localhost:8080';
+import { normalizeTransacao } from '../utils/api';
 
 export const transacaoService = {
   async processar(dados: CreateTransacaoDTO): Promise<Transacao> {
-    const response = await api.post<Transacao>(`${TRANSACOES_API}/api/transacoes`, dados);
-    return response.data;
+    const response = await transacoesApi.post<Record<string, unknown>>('/transacoes', dados);
+    return normalizeTransacao(response.data);
   },
 
   async buscarPorId(id: string): Promise<Transacao> {
-    const response = await api.get<Transacao>(`${TRANSACOES_API}/api/transacoes/${id}`);
-    return response.data;
+    const response = await transacoesApi.get<Record<string, unknown>>(`/transacoes/${id}`);
+    return normalizeTransacao(response.data);
   },
 
   async buscarPorPedido(pedidoId: string): Promise<Transacao> {
-    const response = await api.get<Transacao>(`${TRANSACOES_API}/api/transacoes/pedido/${pedidoId}`);
-    return response.data;
+    const response = await transacoesApi.get<Record<string, unknown>>(`/transacoes/pedido/${pedidoId}`);
+    return normalizeTransacao(response.data);
   },
 
   async cancelar(id: string): Promise<Transacao> {
-    const response = await api.post<Transacao>(`${TRANSACOES_API}/api/transacoes/${id}/cancelar`);
-    return response.data;
+    const response = await transacoesApi.post<Record<string, unknown>>(`/transacoes/${id}/cancelar`);
+    return normalizeTransacao(response.data);
   },
 };

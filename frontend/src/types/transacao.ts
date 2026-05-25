@@ -14,7 +14,7 @@ export interface Transacao {
   formaPagamento: FormaPagamento;
   status: StatusTransacao;
   dadosGateway?: DadosGateway;
-  dataCriacao: Date;
+  dataCriacao: string;
 }
 
 export interface CreateTransacaoDTO {

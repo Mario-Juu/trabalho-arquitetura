@@ -7,7 +7,9 @@ import { pedidoService } from '../services/pedidoService';
 import { transacaoService } from '../services/transacaoService';
 import { CreateClienteDTO } from '../types/cliente';
 import { CreatePedidoDTO, ItemPedido } from '../types/pedido';
-import { FormaPagamento, CreateTransacaoDTO } from '../types/transacao';
+import { FormaPagamento, CreateTransacaoDTO, Transacao } from '../types/transacao';
+import { getApiErrorMessage } from '../utils/api';
+import type { AxiosError } from 'axios';
 
 const clienteSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
@@ -17,12 +19,12 @@ const clienteSchema = z.object({
 
 const CheckoutPage: React.FC = () => {
   const [etapa, setEtapa] = useState<'cliente' | 'itens' | 'pagamento' | 'confirmacao'>('cliente');
-  const [cliente, setCliente] = useState<CreateClienteDTO | null>(null);
+  const [clienteId, setClienteId] = useState<string | null>(null);
   const [itens, setItens] = useState<ItemPedido[]>([]);
   const [novoItem, setNovoItem] = useState<ItemPedido>({ produtoId: '', nome: '', quantidade: 1, preco: 0 });
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento | null>(null);
   const [pedidoId, setPedidoId] = useState<string | null>(null);
-  const [transacaoResult, setTransacaoResult] = useState<any>(null);
+  const [transacaoResult, setTransacaoResult] = useState<Transacao | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -46,45 +48,56 @@ const CheckoutPage: React.FC = () => {
     return itens.reduce((acc, item) => acc + item.preco * item.quantidade, 0);
   };
 
+  const resolverClienteId = async (dados: CreateClienteDTO): Promise<string> => {
+    try {
+      const criado = await clienteService.criar(dados);
+      return criado.id;
+    } catch (err: unknown) {
+      const status = (err as AxiosError)?.response?.status;
+      if (status !== 409) throw err;
+
+      const clientes = await clienteService.listarTodos();
+      const existente = clientes.find((c) => c.email === dados.email);
+      if (!existente?.id) {
+        throw new Error('Cliente já existe, mas não foi possível recuperar o ID.');
+      }
+      return existente.id;
+    }
+  };
+
   const handleCadastrarCliente = async (dados: CreateClienteDTO) => {
     setLoading(true);
     setError(null);
     try {
-      await clienteService.criar(dados);
-      setCliente(dados);
+      const id = await resolverClienteId(dados);
+      setClienteId(id);
       setEtapa('itens');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao cadastrar cliente');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao cadastrar cliente'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleFinalizarPedido = async () => {
-    if (!cliente || itens.length === 0) return;
+    if (!clienteId || itens.length === 0) return;
     setLoading(true);
     setError(null);
     try {
-      // Primeiro busca o cliente
-      const clientes = await clienteService.listarTodos();
-      const clienteExistente = clientes.find(c => c.email === cliente.email);
-
-      if (!clienteExistente) {
-        setError('Cliente não encontrado. Por favor, cadastre-se primeiro.');
-        setLoading(false);
-        return;
-      }
-
       const pedidoDTO: CreatePedidoDTO = {
-        idCliente: clienteExistente.id,
+        idCliente: clienteId,
         itens,
       };
 
       const pedido = await pedidoService.criar(pedidoDTO);
+      if (!pedido.id) {
+        setError('Pedido criado sem ID válido. Tente novamente.');
+        return;
+      }
       setPedidoId(pedido.id);
       setEtapa('pagamento');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao criar pedido');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao criar pedido'));
     } finally {
       setLoading(false);
     }
@@ -94,6 +107,7 @@ const CheckoutPage: React.FC = () => {
     if (!pedidoId || !formaPagamento) return;
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const transacaoDTO: CreateTransacaoDTO = {
         idPedido: pedidoId,
@@ -104,9 +118,13 @@ const CheckoutPage: React.FC = () => {
       const result = await transacaoService.processar(transacaoDTO);
       setTransacaoResult(result);
       setEtapa('confirmacao');
-      setSuccess('Pagamento processado com sucesso!');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao processar pagamento');
+      setSuccess(
+        result.status === 'aprovada'
+          ? 'Pagamento processado com sucesso!'
+          : `Pagamento ${result.status}.`
+      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao processar pagamento'));
     } finally {
       setLoading(false);
     }
@@ -218,7 +236,7 @@ const CheckoutPage: React.FC = () => {
         <button
           onClick={handleFinalizarPedido}
           className="btn btn-primary"
-          disabled={itens.length === 0 || loading}
+          disabled={itens.length === 0 || loading || !clienteId}
         >
           {loading ? 'Processando...' : 'Finalizar Pedido'}
         </button>
@@ -306,8 +324,14 @@ const CheckoutPage: React.FC = () => {
       </p>
       <div style={{ backgroundColor: '#f7fafc', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         <p><strong>ID do Pedido:</strong> {pedidoId}</p>
+        {transacaoResult?.id && (
+          <p><strong>ID da Transação:</strong> {transacaoResult.id}</p>
+        )}
         <p><strong>Total:</strong> R$ {calcularTotal().toFixed(2)}</p>
-        <p><strong>Forma de Pagamento:</strong> {formaPagamento?.replace('_', ' ')}</p>
+        <p><strong>Forma de Pagamento:</strong> {formaPagamento?.replace(/_/g, ' ')}</p>
+        {transacaoResult?.status && (
+          <p><strong>Status:</strong> {transacaoResult.status}</p>
+        )}
       </div>
       <button onClick={() => window.location.reload()} className="btn btn-primary">
         Fazer Nova Compra

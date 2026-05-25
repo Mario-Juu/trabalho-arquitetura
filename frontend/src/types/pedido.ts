@@ -11,7 +11,7 @@ export interface Pedido {
   itens: ItemPedido[];
   total: number;
   status: 'pendente' | 'em_processamento' | 'pago' | 'cancelado';
-  dataCriacao: Date;
+  dataCriacao: string;
 }
 
 export interface CreatePedidoDTO {

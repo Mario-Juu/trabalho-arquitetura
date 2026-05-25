@@ -6,10 +6,17 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
+      '/api/clientes': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/api/pedidos': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+      },
+      '/api/transacoes': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
       },
     },
   },
